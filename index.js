@@ -10,7 +10,7 @@ var _ = require("lodash");
 var toposort = require("toposort");
 
 var promisedCommand = function (stream) {
-  return new Promise(function (resolve, reject) {
+  return new bluebird.Promise(function (resolve, reject) {
     stream
       .on("end", resolve)
       .on("error", reject);
