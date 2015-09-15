@@ -1,11 +1,19 @@
 {
   "name": "purescript-dependency-helper",
-  "version": "0.2.1",
+  "version": "1.0.0",
+  "description": "A tool to perform reverse lookups of purescript dependencies",
+  "keywords": ["purescript"],
+  "homepage": "https://github.com/garyb/purescript-dependency-helper",
+  "license": "MIT",
+  "author": "Gary Burgess <gary.burgess@gmail.com>",
   "main": "index.js",
   "bin": {
     "psc-dependencies": "./index.js"
   },
-  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/garyb/purescript-dependency-helper.git"
+  },
   "dependencies": {
     "bluebird": "^2.10.0",
     "bower": "^1.5.2",
