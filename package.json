@@ -1,0 +1,15 @@
+{
+  "name": "purescript-dependency-helper",
+  "version": "0.1.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "bluebird": "^2.10.0",
+    "bower": "^1.5.2",
+    "commander": "^2.8.1",
+    "lodash": "^3.10.1",
+    "mkdirp": "^0.5.1",
+    "rimraf": "^2.4.3",
+    "toposort": "^0.2.12"
+  }
+}
