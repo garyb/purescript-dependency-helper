@@ -155,6 +155,7 @@ var reworkGitHubURL = function (url) {
 //------------------------------------------------------------------------------
 
 var isFiltered = function (owners, project) {
+  if (!_.isArray(owners)) return false;
   var url = project.url;
   if (url.indexOf("git://github.com") !== 0) return true;
   return owners.indexOf(url.substring(17, url.indexOf("/", 17))) === -1;
