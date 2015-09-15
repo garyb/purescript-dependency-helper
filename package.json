@@ -1,8 +1,10 @@
 {
   "name": "purescript-dependency-helper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A tool to perform reverse lookups of purescript dependencies",
-  "keywords": ["purescript"],
+  "keywords": [
+    "purescript"
+  ],
   "homepage": "https://github.com/garyb/purescript-dependency-helper",
   "license": "MIT",
   "author": "Gary Burgess <gary.burgess@gmail.com>",
