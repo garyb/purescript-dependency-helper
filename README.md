@@ -7,7 +7,7 @@ A tool to perform reverse lookups of purescript dependencies.
 ## Installation
 
 ```
-npm install -g purescript-dependency helper
+npm install -g purescript-dependency-helper
 ```
 
 This will install a globally-runnable command called `psc-dependencies`.
