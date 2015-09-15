@@ -1,6 +1,6 @@
 {
   "name": "purescript-dependency-helper",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "main": "index.js",
   "bin": {
     "psc-dependencies": "./index.js"
