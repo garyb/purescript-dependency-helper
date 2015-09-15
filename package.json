@@ -1,7 +1,10 @@
 {
   "name": "purescript-dependency-helper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "index.js",
+  "bin": {
+    "psc-dependencies": "./index.js"
+  },
   "license": "MIT",
   "dependencies": {
     "bluebird": "^2.10.0",

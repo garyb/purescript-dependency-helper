@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var bower = require("bower");
 var commander = require("commander");
 var bluebird = require("bluebird");
@@ -18,32 +20,32 @@ var promisedCommand = function (stream) {
 //------------------------------------------------------------------------------
 
 var clearCache = function () {
-  return rimraf("cache")
+  return rimraf(".psc-dependencies-cache")
     .then(function () {
-      console.info("Cleaned the cache...");
+      console.info("Cleaned the .psc-dependencies-cache...");
     });
 };
 
 //------------------------------------------------------------------------------
 
 var createCache = function () {
-  return mkdirp("cache");
+  return mkdirp(".psc-dependencies-cache");
 };
 
 //------------------------------------------------------------------------------
 
 var loadProjectsList = function () {
-  return fs.readFileAsync("cache/_index.json")
+  return fs.readFileAsync(".psc-dependencies-cache/_index.json")
     .then(JSON.parse)
     .then(function (projects) {
-      // console.log("Loaded projects list from cache - " + projects.length + " projects");
+      // console.log("Loaded projects list from .psc-dependencies-cache - " + projects.length + " projects");
       return projects;
     })
     .catch(function (err) {
-      console.log("Failed to load list from cache, fetching from bower...");
+      console.log("Failed to load list from .psc-dependencies-cache, fetching from bower...");
       return promisedCommand(bower.commands.search("purescript"))
         .then(function (projects) {
-          return fs.writeFileAsync("cache/_index.json", JSON.stringify(projects, null, 2))
+          return fs.writeFileAsync(".psc-dependencies-cache/_index.json", JSON.stringify(projects, null, 2))
             .return(projects);
         })
         .then(function (projects) {
@@ -57,7 +59,7 @@ var loadProjectsList = function () {
 
 var loadProjectInfo = function (p) {
   var name = p.name;
-  return fs.readFileAsync("cache/" + name + ".json")
+  return fs.readFileAsync(".psc-dependencies-cache/" + name + ".json")
     .then(JSON.parse)
     .then(function (project) {
       // console.log("Loaded " + name + "@" + (project.latest.version || "*"));
@@ -68,7 +70,7 @@ var loadProjectInfo = function (p) {
       return promisedCommand(bower.commands.info(name))
         .then(function (project) {
           project.url = p.url;
-          return fs.writeFileAsync("cache/" + name + ".json", JSON.stringify(project, null, 2))
+          return fs.writeFileAsync(".psc-dependencies-cache/" + name + ".json", JSON.stringify(project, null, 2))
             .return(project);
         })
         .then(function (project) {
@@ -91,10 +93,10 @@ var loadProjectInfo = function (p) {
 var loadProjects = function () {
   return createCache()
     .then(loadProjectsList)
-    .map(loadProjectInfo)
+    .map(loadProjectInfo, { concurrency: 8 })
     .then(function (projects) {
       var actualProjects = projects.filter(function (p) { return p !== null; });
-      return fs.writeFileAsync("cache/_index.json", JSON.stringify(actualProjects, null, 2))
+      return fs.writeFileAsync(".psc-dependencies-cache/_index.json", JSON.stringify(actualProjects, null, 2))
         .return(actualProjects);
     });
 };
@@ -166,7 +168,7 @@ var list = function (val) {
 
 commander
   .version(require("./package.json").version)
-  .option("--clean", "Clean the cache")
+  .option("--clean", "Clean the .psc-dependencies-cache")
   .option("--lookup [name]", "Lookup all the dependants of the specified module")
   .option("--markdown", "Generate the lookup result as a markdown list")
   .option("--direct", "Don't include transitive dependants in the output")
