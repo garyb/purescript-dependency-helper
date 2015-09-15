@@ -8,6 +8,8 @@ var rimraf = bluebird.promisify(require("rimraf"));
 var fs = bluebird.promisifyAll(require("fs"));
 var _ = require("lodash");
 var toposort = require("toposort");
+var request = require("request");
+var chalk = require("chalk");
 
 var promisedCommand = function (stream) {
   return new bluebird.Promise(function (resolve, reject) {
@@ -19,10 +21,27 @@ var promisedCommand = function (stream) {
 
 //------------------------------------------------------------------------------
 
+var log = {
+  result: function (msg) {
+    console.log(chalk.bold(msg));
+  },
+  debug: function (msg) {
+    console.log(chalk.gray(msg));
+  },
+  warn: function (msg) {
+    console.error(chalk.yellow(msg));
+  },
+  error: function (msg) {
+    console.error(chalk.red(msg));
+  }
+};
+
+//------------------------------------------------------------------------------
+
 var clearCache = function () {
   return rimraf(".psc-dependencies-cache")
     .then(function () {
-      console.info("Cleaned the .psc-dependencies-cache...");
+      log.result("Cleaned the .psc-dependencies-cache");
     });
 };
 
@@ -42,17 +61,43 @@ var loadProjectsList = function () {
       return projects;
     })
     .catch(function (err) {
-      console.log("Failed to load list from .psc-dependencies-cache, fetching from bower...");
+      log.debug("Failed to load list from .psc-dependencies-cache, fetching from bower...");
       return promisedCommand(bower.commands.search("purescript"))
+        .map(checkRedirect)
         .then(function (projects) {
           return fs.writeFileAsync(".psc-dependencies-cache/_index.json", JSON.stringify(projects, null, 2))
             .return(projects);
         })
         .then(function (projects) {
-          console.log("Fetched projects list - found " + projects.length + " projects");
+          log.debug("Fetched projects list - found " + projects.length + " projects");
           return projects;
         });
     });
+};
+
+//------------------------------------------------------------------------------
+
+var checkRedirect = function (p) {
+  if (!isGitHubURL(p.url)) {
+    return bluebird.resolve(p);
+  }
+  return new bluebird.Promise(function (resolve, reject) {
+    var url = reworkGitHubURL(p.url);
+    log.debug("Checking if " + url + " has moved...");
+    request.head(url, { followRedirect: false }, function (err, res) {
+      if (err) {
+        reject(err);
+        return;
+      }
+      if (res.statusCode === 301) {
+        var newURL = res.headers.location;
+        var newPath = newURL.substring(newURL.indexOf("/", 8));
+        log.debug(url + " has moved to " + newURL);
+        p.url = "git://github.com" + newPath + ".git";
+      }
+      resolve(p);
+    });
+  });
 };
 
 //------------------------------------------------------------------------------
@@ -66,7 +111,7 @@ var loadProjectInfo = function (p) {
       return project;
     })
     .catch(function (err) {
-      console.log("Fetching " + name + " info...");
+      log.debug("Fetching " + name + " info...");
       return promisedCommand(bower.commands.info(name))
         .then(function (project) {
           project.url = p.url;
@@ -74,12 +119,12 @@ var loadProjectInfo = function (p) {
             .return(project);
         })
         .then(function (project) {
-          console.log("Fetched " + name + "@" + (project.latest.version || "*"));
+          log.debug("Fetched " + name + "@" + (project.latest.version || "*"));
           return project;
         })
         .catch(function (err) {
           if (err.details && err.details.indexOf("Repository not found") != -1) {
-            console.warn("Failed to fetch " + name + " info: " + err.data.resolver.source + " does not exist");
+            log.warn("Failed to fetch " + name + " info: " + err.data.resolver.source + " does not exist");
             return null;
           } else {
             throw err;
@@ -95,8 +140,12 @@ var loadProjects = function () {
     .then(loadProjectsList)
     .map(loadProjectInfo, { concurrency: 8 })
     .then(function (projects) {
-      var actualProjects = projects.filter(function (p) { return p !== null; });
-      return fs.writeFileAsync(".psc-dependencies-cache/_index.json", JSON.stringify(actualProjects, null, 2))
+      var actualProjects = projects
+        .filter(function (p) { return p !== null; });
+      var aplist = actualProjects.map(function (p) {
+        return { name: p.name, url: p.url };
+      });
+      return fs.writeFileAsync(".psc-dependencies-cache/_index.json", JSON.stringify(aplist, null, 2))
         .return(actualProjects);
     });
 };
@@ -145,8 +194,12 @@ var findEntry = function (projects, name) {
 
 //------------------------------------------------------------------------------
 
+var isGitHubURL = function (url) {
+  return url.indexOf("git://github.com") === 0;
+};
+
 var reworkGitHubURL = function (url) {
-  if (url.indexOf("git://github.com") === 0) {
+  if (isGitHubURL(url)) {
     return "https://github.com" + url.substring(16, url.length - 4);
   }
   return url;
@@ -157,7 +210,7 @@ var reworkGitHubURL = function (url) {
 var isFiltered = function (owners, project) {
   if (!_.isArray(owners)) return false;
   var url = project.url;
-  if (url.indexOf("git://github.com") !== 0) return true;
+  if (!isGitHubURL(url)) return true;
   return owners.indexOf(url.substring(17, url.indexOf("/", 17))) === -1;
 };
 
@@ -189,11 +242,11 @@ if (commander.clean) {
 
       if (commander.lookup) {
         if (!_.isString(commander.lookup)) {
-          console.error("Please enter a name to lookup");
+          log.error("Please enter a name to lookup");
           return;
         }
         var lookup = commander.lookup;
-        console.log("Dependants of " + lookup + ":\n");
+        log.result("Dependants of " + lookup + ":\n");
 
         var ledges = findAllDependencies(lookup, graph.edges);
         ledges.unshift(lookup);
@@ -220,7 +273,7 @@ if (commander.clean) {
             if (commander.markdown) {
               console.log("- [ ] [" + name + "](" + reworkGitHubURL(p.url) + ")" + (isTransitive ? "*" : ""));
             } else {
-              console.log(name + (isTransitive ? "*" : "") + " - " + reworkGitHubURL(p.url));
+              console.log(name + (isTransitive ? "*" : "") + " - " + chalk.cyan(reworkGitHubURL(p.url)));
             }
           }
         });
