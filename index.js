@@ -10,6 +10,7 @@ var _ = require("lodash");
 var toposort = require("toposort");
 var request = require("request");
 var chalk = require("chalk");
+var _url = require("url");
 
 var promisedCommand = function (stream) {
   return new bluebird.Promise(function (resolve, reject) {
@@ -61,8 +62,8 @@ var loadProjectsList = function () {
       return projects;
     })
     .catch(function (err) {
-      log.debug("Failed to load list from .psc-dependencies-cache, fetching from bower...");
-      return promisedCommand(bower.commands.search("purescript"))
+      log.debug("Failed to load list from .psc-dependencies-cache, fetching from package-sets...");
+      return fetchPackageSet()
         .map(checkRedirect)
         .then(function (projects) {
           return fs.writeFileAsync(".psc-dependencies-cache/_index.json", JSON.stringify(projects, null, 2))
@@ -77,12 +78,35 @@ var loadProjectsList = function () {
 
 //------------------------------------------------------------------------------
 
+var fetchPackageSet = function () {
+  var packageSetUrl = "https://raw.githubusercontent.com/purescript/package-sets/master/packages.json";
+  return new bluebird.Promise(function (resolve, reject) {
+    request(packageSetUrl, function (err, res, body) {
+      var packages, result = [];
+      if (err) {
+        reject(err);
+        return;
+      }
+      packages = JSON.parse(body);
+      for (var name in packages) {
+        if (packages.hasOwnProperty(name)) {
+          var pkg = packages[name];
+          result.push({ name: "purescript-" + name, url: pkg.repo });
+        }
+      }
+      resolve(result);
+    });
+  });
+};
+
+//------------------------------------------------------------------------------
+
 var checkRedirect = function (p) {
   if (!isGitHubURL(p.url)) {
     return bluebird.resolve(p);
   }
   return new bluebird.Promise(function (resolve, reject) {
-    var url = reworkGitHubURL(p.url);
+    var url = p.url;
     log.debug("Checking if " + url + " has moved...");
     request.head(url, { followRedirect: false }, function (err, res) {
       if (err) {
@@ -91,9 +115,9 @@ var checkRedirect = function (p) {
       }
       if (res.statusCode === 301) {
         var newURL = res.headers.location;
-        var newPath = newURL.substring(newURL.indexOf("/", 8));
+        var newPath = _url.parse(newURL).path;
         log.debug(url + " has moved to " + newURL);
-        p.url = "git://github.com" + newPath + ".git";
+        p.url = "https://github.com" + newPath + ".git";
       }
       resolve(p);
     });
@@ -125,6 +149,9 @@ var loadProjectInfo = function (p) {
         .catch(function (err) {
           if (err.details && err.details.indexOf("Repository not found") != -1) {
             log.warn("Failed to fetch " + name + " info: " + err.data.resolver.source + " does not exist");
+            return null;
+          } else if (err.details && err.details.indexOf("Authentication failed") != -1) {
+            log.warn("Failed to fetch " + name + " info: authentication failed for " + err.data.resolver.source);
             return null;
           } else {
             throw err;
@@ -195,14 +222,7 @@ var findEntry = function (projects, name) {
 //------------------------------------------------------------------------------
 
 var isGitHubURL = function (url) {
-  return url.indexOf("git://github.com") === 0;
-};
-
-var reworkGitHubURL = function (url) {
-  if (isGitHubURL(url)) {
-    return "https://github.com" + url.substring(16, url.length - 4);
-  }
-  return url;
+  return url.indexOf("https://github.com") === 0;
 };
 
 //------------------------------------------------------------------------------
@@ -211,7 +231,8 @@ var isFiltered = function (owners, project) {
   if (!_.isArray(owners)) return false;
   var url = project.url;
   if (!isGitHubURL(url)) return true;
-  return owners.indexOf(url.substring(17, url.indexOf("/", 17))) === -1;
+  var owner = _url.parse(url).path.split('/')[1];
+  return owners.indexOf(owner) === -1;
 };
 
 //------------------------------------------------------------------------------
@@ -271,9 +292,9 @@ if (commander.clean) {
           var isTransitive = dependencies.indexOf(lookup) === -1;
           if (!isFiltered(commander.filterOwners, p) && (!commander.direct || !isTransitive)) {
             if (commander.markdown) {
-              console.log("- [ ] [" + name + "](" + reworkGitHubURL(p.url) + ")" + (isTransitive ? "*" : ""));
+              console.log("- [ ] [" + name + "](" + p.url + ")" + (isTransitive ? "*" : ""));
             } else {
-              console.log(name + (isTransitive ? "*" : "") + " - " + chalk.cyan(reworkGitHubURL(p.url)));
+              console.log(name + (isTransitive ? "*" : "") + " - " + chalk.cyan(p.url));
             }
           }
         });
